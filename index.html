@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Voice-Activated Multiple Choice</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* Custom CSS for a little extra polish */
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        .choice-item .tick {
+            /* Hide the tick by default */
+            opacity: 0;
+            transition: opacity 0.3s ease-in-out;
+        }
+        .choice-item.selected .tick {
+            /* Show the tick when the item is selected */
+            opacity: 1;
+        }
+        .choice-item.selected {
+            /* Highlight the selected choice */
+            background-color: #e0f2fe; /* light blue */
+            border-color: #0284c7; /* darker blue */
+        }
+    </style>
+</head>
+<body class="bg-slate-100 flex items-center justify-center min-h-screen">
+
+    <div class="bg-white w-full max-w-2xl mx-4 p-8 rounded-2xl shadow-lg text-slate-800">
+        
+        <!-- Question Title -->
+        <h1 class="text-2xl md:text-3xl font-bold text-center mb-6">
+            What is the capital city of France?
+        </h1>
+
+        <!-- Choices List -->
+        <div id="choices-container" class="space-y-4 mb-8">
+            <!-- Choices will be dynamically added here by JavaScript -->
+        </div>
+
+        <!-- Control Button and Status Message -->
+        <div class="text-center">
+            <button id="start-btn" class="bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-all duration-300 transform hover:scale-105">
+                Tap and Speak Answer
+            </button>
+            <p id="status" class="mt-4 text-slate-500 h-6">Tap the button to start.</p>
+        </div>
+
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            // --- Configuration ---
+            const choices = ["Berlin", "Madrid", "Paris", "Rome"];
+            const correctChoice = "Paris"; // This is used for simple validation feedback
+
+            // --- DOM Elements ---
+            const choicesContainer = document.getElementById('choices-container');
+            const startBtn = document.getElementById('start-btn');
+            const statusEl = document.getElementById('status');
+            
+            // --- Speech Recognition Setup ---
+            // Check for browser support (with vendor prefixes)
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            let recognition;
+
+            if (SpeechRecognition) {
+                recognition = new SpeechRecognition();
+                recognition.continuous = false; // Stop listening after first speech detected
+                recognition.lang = 'en-US';
+                recognition.interimResults = false;
+                recognition.maxAlternatives = 1;
+            } else {
+                // Handle browsers that don't support the API
+                startBtn.disabled = true;
+                startBtn.textContent = 'Voice Recognition Not Supported';
+                statusEl.textContent = 'Sorry, your browser does not support the Web Speech API.';
+                return;
+            }
+
+            // --- Function to create and display choices ---
+            function renderChoices() {
+                choicesContainer.innerHTML = ''; // Clear existing choices
+                choices.forEach(choiceText => {
+                    const choiceElement = document.createElement('div');
+                    choiceElement.className = 'choice-item border-2 border-slate-200 p-4 rounded-lg flex items-center justify-between transition-colors duration-300';
+                    // Use the choice text as a data attribute for easy identification
+                    choiceElement.dataset.choice = choiceText.toLowerCase();
+                    
+                    choiceElement.innerHTML = `
+                        <span class="text-lg font-medium">${choiceText}</span>
+                        <span class="tick text-3xl text-green-500 font-bold">✓</span>
+                    `;
+                    choicesContainer.appendChild(choiceElement);
+                });
+            }
+
+            // --- Event Handlers for Speech Recognition ---
+            
+            // Fired when speech is successfully recognized
+            recognition.onresult = (event) => {
+                const spokenAnswer = event.results[0][0].transcript.trim().toLowerCase();
+                statusEl.textContent = `You said: "${spokenAnswer}"`;
+                
+                // Find the DOM element that matches the spoken answer
+                const allChoiceElements = document.querySelectorAll('.choice-item');
+                let matchFound = false;
+
+                allChoiceElements.forEach(el => {
+                    // Check if the spoken word is exactly the choice text
+                    if (el.dataset.choice === spokenAnswer) {
+                        // Reset all others first
+                        allChoiceElements.forEach(item => item.classList.remove('selected'));
+                        // Select the matched one
+                        el.classList.add('selected');
+                        matchFound = true;
+                    }
+                });
+
+                if (!matchFound) {
+                   statusEl.textContent = `I heard "${spokenAnswer}", but it's not an option. Try again!`;
+                }
+            };
+            
+            // Fired when the listening process ends
+            recognition.onend = () => {
+                startBtn.disabled = false;
+                startBtn.textContent = 'Tap and Speak Answer';
+            };
+
+            // Fired on an error
+            recognition.onerror = (event) => {
+                statusEl.textContent = `Error: ${event.error}. Please try again.`;
+                startBtn.disabled = false;
+            };
+
+            // --- Main Button Click Handler ---
+            startBtn.addEventListener('click', () => {
+                // Clear any previous selections
+                document.querySelectorAll('.choice-item').forEach(el => el.classList.remove('selected'));
+                
+                // Start listening
+                try {
+                    recognition.start();
+                    startBtn.disabled = true;
+                    startBtn.textContent = 'Listening...';
+                    statusEl.textContent = 'Please speak your answer clearly.';
+                } catch(e) {
+                    statusEl.textContent = "Error starting recognition. Please check microphone permissions.";
+                    startBtn.disabled = false;
+                }
+            });
+
+            // --- Initial Render ---
+            renderChoices();
+        });
+    </script>
+
+</body>
+</html>
