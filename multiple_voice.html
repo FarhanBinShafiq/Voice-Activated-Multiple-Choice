@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-User Voice Quiz</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .choice-item .tick { display: none; }
+        .choice-item.selected .tick { display: inline; }
+        .choice-item.selected { background-color: #e0f2fe; border-color: #0284c7; }
+        .choice-item.correct { background-color: #dcfce7; border-color: #22c55e; }
+        .choice-item.incorrect { background-color: #fee2e2; border-color: #ef4444; }
+        /* Simple hide/show utility */
+        .hidden { display: none !important; }
+    </style>
+</head>
+<body class="bg-slate-100 flex items-center justify-center min-h-screen p-4">
+
+    <div id="app-container" class="w-full max-w-3xl">
+
+        <!-- ======================================================= -->
+        <!-- View 1: Role Selection & Session Management            -->
+        <!-- ======================================================= -->
+        <div id="role-selection-view" class="bg-white p-8 rounded-2xl shadow-lg">
+            <h1 class="text-3xl font-bold text-center text-slate-800 mb-2">Multi-User Voice Quiz</h1>
+            <p class="text-center text-slate-500 mb-6">One person asks, the other answers with their voice.</p>
+            
+            <div class="bg-slate-50 p-4 rounded-lg text-center mb-6">
+                <p class="text-sm text-slate-600">Your User ID (share for reference if needed):</p>
+                <p id="user-id-display" class="font-mono text-xs bg-slate-200 text-slate-700 rounded p-2 mt-1 break-all">Loading...</p>
+            </div>
+            
+            <div class="grid md:grid-cols-2 gap-6">
+                <!-- Asker Column -->
+                <div class="flex flex-col border border-slate-200 p-6 rounded-xl">
+                    <h2 class="text-xl font-bold text-sky-700 mb-3">Become the Asker</h2>
+                    <p class="text-slate-600 text-sm mb-4 flex-grow">Create a new quiz session and send questions to the other player.</p>
+                    <button id="create-session-btn" class="w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105">Create & Ask Questions</button>
+                </div>
+
+                <!-- Answerer Column -->
+                <div class="flex flex-col border border-slate-200 p-6 rounded-xl">
+                    <h2 class="text-xl font-bold text-amber-700 mb-3">Become the Answerer</h2>
+                    <p class="text-slate-600 text-sm mb-4 flex-grow">Join an existing session using an ID from the Asker.</p>
+                    <input type="text" id="session-id-input" placeholder="Enter Session ID" class="w-full border border-slate-300 p-3 rounded-lg mb-3 focus:ring-2 focus:ring-amber-500">
+                    <button id="join-session-btn" class="w-full bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105">Join & Answer</button>
+                </div>
+            </div>
+             <p id="role-error" class="text-center text-red-500 mt-4 h-4"></p>
+        </div>
+
+        <!-- ======================================================= -->
+        <!-- View 2: Asker's Interface                              -->
+        <!-- ======================================================= -->
+        <div id="asker-view" class="hidden bg-white p-8 rounded-2xl shadow-lg">
+            <h1 class="text-2xl font-bold text-slate-800 mb-2">Question Asker</h1>
+            <div class="bg-sky-50 p-3 rounded-lg text-center mb-6">
+                <p class="text-sm text-sky-800">Share this Session ID with the Answerer:</p>
+                <p id="session-id-display" class="font-mono text-lg bg-sky-200 text-sky-900 rounded p-2 mt-1 break-all cursor-pointer" title="Click to copy"></p>
+            </div>
+            
+            <div id="question-form">
+                <div class="space-y-4">
+                    <input type="text" id="question-input" placeholder="Enter your question here" class="w-full border border-slate-300 p-3 rounded-lg text-lg">
+                    <!-- Choices -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <input type="text" name="choice" placeholder="Choice A" class="choice-input w-full border border-slate-300 p-3 rounded-lg">
+                        <input type="text" name="choice" placeholder="Choice B" class="choice-input w-full border border-slate-300 p-3 rounded-lg">
+                        <input type="text" name="choice" placeholder="Choice C" class="choice-input w-full border border-slate-300 p-3 rounded-lg">
+                        <input type="text" name="choice" placeholder="Choice D" class="choice-input w-full border border-slate-300 p-3 rounded-lg">
+                    </div>
+                    <!-- Correct Answer Selection -->
+                    <select id="correct-answer-select" class="w-full border border-slate-300 p-3 rounded-lg bg-white">
+                        <option value="">-- Select the Correct Answer --</option>
+                    </select>
+                </div>
+                <button id="submit-question-btn" class="mt-6 w-full bg-sky-600 hover:bg-sky-700 text-white font-bold py-3 px-4 rounded-lg transition-transform transform hover:scale-105">Submit Question</button>
+                <p id="asker-error" class="text-center text-red-500 mt-4 h-4"></p>
+            </div>
+
+            <div id="asker-waiting-view" class="hidden text-center p-8">
+                <p class="text-2xl font-semibold text-slate-700">Question Sent!</p>
+                <p class="text-slate-500 mt-2">Waiting for the other player to answer...</p>
+                 <div class="mt-6 text-lg" id="answer-feedback"></div>
+                 <button id="next-question-btn" class="hidden mt-6 bg-slate-600 hover:bg-slate-700 text-white font-bold py-2 px-6 rounded-lg">Ask Next Question</button>
+            </div>
+        </div>
+
+        <!-- ======================================================= -->
+        <!-- View 3: Answerer's Interface                           -->
+        <!-- ======================================================= -->
+        <div id="answerer-view" class="hidden bg-white p-8 rounded-2xl shadow-lg">
+             <div id="answerer-waiting-view">
+                 <h1 class="text-2xl font-bold text-center text-slate-700">Joined Session!</h1>
+                 <p class="text-center text-slate-500 mt-2">Waiting for the Asker to send a question...</p>
+             </div>
+             <div id="question-display-view" class="hidden">
+                <h1 id="question-text" class="text-2xl md:text-3xl font-bold text-center mb-6"></h1>
+                <div id="choices-container" class="space-y-4 mb-8"></div>
+                <div class="text-center">
+                    <button id="start-recognition-btn" class="bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-8 rounded-lg shadow-md transition-all duration-300 transform hover:scale-105">Tap and Speak Answer</button>
+                    <p id="recognition-status" class="mt-4 text-slate-500 h-6">Tap the button to start.</p>
+                </div>
+             </div>
+        </div>
+
+    </div>
+
+    <!-- Firebase SDKs -->
+    <script type="module">
+        // Firebase Imports
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc, onSnapshot, updateDoc, serverTimestamp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // --- Global State ---
+        let db, auth, userId;
+        let currentSessionId = null;
+        let unsubscribeFromSession = null; // To store the onSnapshot listener
+
+        // --- App ID and Firebase Config (Provided by Environment) ---
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-quiz-app';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {};
+
+        // --- DOM Elements ---
+        const roleSelectionView = document.getElementById('role-selection-view');
+        const askerView = document.getElementById('asker-view');
+        const answererView = document.getElementById('answerer-view');
+
+        // Role selection elements
+        const userIdDisplay = document.getElementById('user-id-display');
+        const createSessionBtn = document.getElementById('create-session-btn');
+        const joinSessionBtn = document.getElementById('join-session-btn');
+        const sessionIdInput = document.getElementById('session-id-input');
+        const roleError = document.getElementById('role-error');
+
+        // Asker view elements
+        const sessionIdDisplay = document.getElementById('session-id-display');
+        const questionInput = document.getElementById('question-input');
+        const choiceInputs = document.querySelectorAll('.choice-input');
+        const correctAnswerSelect = document.getElementById('correct-answer-select');
+        const submitQuestionBtn = document.getElementById('submit-question-btn');
+        const askerError = document.getElementById('asker-error');
+        const questionForm = document.getElementById('question-form');
+        const askerWaitingView = document.getElementById('asker-waiting-view');
+        const answerFeedback = document.getElementById('answer-feedback');
+        const nextQuestionBtn = document.getElementById('next-question-btn');
+
+
+        // Answerer view elements
+        const answererWaitingView = document.getElementById('answerer-waiting-view');
+        const questionDisplayView = document.getElementById('question-display-view');
+        const questionText = document.getElementById('question-text');
+        const choicesContainer = document.getElementById('choices-container');
+        const startRecognitionBtn = document.getElementById('start-recognition-btn');
+        const recognitionStatus = document.getElementById('recognition-status');
+
+        // --- Speech Recognition Setup ---
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        let recognition;
+        if (SpeechRecognition) {
+            recognition = new SpeechRecognition();
+            recognition.continuous = false;
+            recognition.lang = 'en-US';
+        } else {
+            console.error("Web Speech API not supported.");
+            // Disable voice-related buttons throughout the app
+        }
+
+        // --- Utility Functions ---
+        function switchView(view) {
+            roleSelectionView.classList.add('hidden');
+            askerView.classList.add('hidden');
+            answererView.classList.add('hidden');
+            if (view === 'role') roleSelectionView.classList.remove('hidden');
+            if (view === 'asker') askerView.classList.remove('hidden');
+            if (view === 'answerer') answererView.classList.remove('hidden');
+        }
+
+        function generateSessionId() {
+            return Math.random().toString(36).substring(2, 8).toUpperCase();
+        }
+
+        function getSessionDocRef(sessionId) {
+            return doc(db, `artifacts/${appId}/public/data/quiz_sessions`, sessionId);
+        }
+
+        // --- Firebase Initialization and Auth ---
+        async function initializeAndAuth() {
+            try {
+                const app = initializeApp(firebaseConfig);
+                db = getFirestore(app);
+                auth = getAuth(app);
+
+                onAuthStateChanged(auth, async (user) => {
+                    if (user) {
+                        userId = user.uid;
+                        userIdDisplay.textContent = userId;
+                        console.log("Authenticated with User ID:", userId);
+                    } else {
+                        // Handle case where auth fails or user signs out
+                        userId = null;
+                        userIdDisplay.textContent = "Not authenticated";
+                    }
+                });
+
+                if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                    await signInWithCustomToken(auth, __initial_auth_token);
+                } else {
+                    await signInAnonymously(auth);
+                }
+
+            } catch (error) {
+                console.error("Firebase Initialization Error:", error);
+                document.body.innerHTML = '<div class="text-red-500 text-center p-8">Error initializing the application. Please check the console.</div>';
+            }
+        }
+        
+        // --- Core Application Logic ---
+
+        // Asker creates a session
+        createSessionBtn.addEventListener('click', async () => {
+            currentSessionId = generateSessionId();
+            const sessionRef = getSessionDocRef(currentSessionId);
+            
+            try {
+                await setDoc(sessionRef, {
+                    sessionId: currentSessionId,
+                    askerId: userId,
+                    answererId: null,
+                    status: 'waiting_for_question', // waiting_for_question, waiting_for_answer, answered
+                    createdAt: serverTimestamp()
+                });
+                sessionIdDisplay.textContent = currentSessionId;
+                listenToSession(currentSessionId);
+                switchView('asker');
+            } catch (error) {
+                console.error("Error creating session:", error);
+                roleError.textContent = "Could not create session. Try again.";
+            }
+        });
+        
+        // Answerer joins a session
+        joinSessionBtn.addEventListener('click', async () => {
+            const inputId = sessionIdInput.value.trim().toUpperCase();
+            if (!inputId) {
+                roleError.textContent = "Please enter a Session ID.";
+                return;
+            }
+            
+            const sessionRef = getSessionDocRef(inputId);
+            try {
+                const docSnap = await getDoc(sessionRef);
+                if (docSnap.exists()) {
+                    await updateDoc(sessionRef, { answererId: userId });
+                    currentSessionId = inputId;
+                    listenToSession(currentSessionId);
+                    switchView('answerer');
+                } else {
+                    roleError.textContent = "Session not found.";
+                }
+            } catch (error) {
+                 console.error("Error joining session:", error);
+                 roleError.textContent = "Could not join session. Try again.";
+            }
+        });
+        
+        // Update correct answer dropdown based on choice inputs
+        choiceInputs.forEach(input => {
+            input.addEventListener('input', () => {
+                const validChoices = Array.from(choiceInputs)
+                    .map(i => i.value.trim())
+                    .filter(val => val !== '');
+                
+                correctAnswerSelect.innerHTML = '<option value="">-- Select the Correct Answer --</option>';
+                validChoices.forEach(choice => {
+                    const option = document.createElement('option');
+                    option.value = choice;
+                    option.textContent = choice;
+                    correctAnswerSelect.appendChild(option);
+                });
+            });
+        });
+
+        // Asker submits a question
+        submitQuestionBtn.addEventListener('click', async () => {
+             askerError.textContent = '';
+             const question = questionInput.value.trim();
+             const choices = Array.from(choiceInputs).map(i => i.value.trim()).filter(Boolean);
+             const correctAnswer = correctAnswerSelect.value;
+
+             if (!question || choices.length < 2 || !correctAnswer) {
+                 askerError.textContent = 'Please fill all fields and select a correct answer.';
+                 return;
+             }
+             
+             const sessionRef = getSessionDocRef(currentSessionId);
+             try {
+                await updateDoc(sessionRef, {
+                    question: question,
+                    choices: choices,
+                    correctAnswer: correctAnswer,
+                    selectedAnswer: null, // Reset selected answer
+                    status: 'waiting_for_answer'
+                });
+             } catch(error) {
+                console.error("Error submitting question:", error);
+                askerError.textContent = "Could not submit question.";
+             }
+        });
+
+        // Asker asks the next question
+        nextQuestionBtn.addEventListener('click', async () => {
+            questionForm.classList.remove('hidden');
+            askerWaitingView.classList.add('hidden');
+            nextQuestionBtn.classList.add('hidden');
+            answerFeedback.textContent = '';
+            questionInput.value = '';
+            choiceInputs.forEach(i => i.value = '');
+            correctAnswerSelect.innerHTML = '<option value="">-- Select the Correct Answer --</option>';
+
+            const sessionRef = getSessionDocRef(currentSessionId);
+            await updateDoc(sessionRef, { status: 'waiting_for_question' });
+        });
+
+        // Real-time listener for session updates
+        function listenToSession(sessionId) {
+            if (unsubscribeFromSession) {
+                unsubscribeFromSession(); // Stop listening to previous session if any
+            }
+            
+            const sessionRef = getSessionDocRef(sessionId);
+            unsubscribeFromSession = onSnapshot(sessionRef, (doc) => {
+                if (!doc.exists()) {
+                    console.log("Session deleted or does not exist.");
+                    alert("The session has ended.");
+                    // Reset UI to start
+                    window.location.reload(); 
+                    return;
+                }
+                const data = doc.data();
+                
+                // Update UI for both players based on status
+                updateAskerView(data);
+                updateAnswererView(data);
+            });
+        }
+        
+        // --- UI Update Functions ---
+        
+        function updateAskerView(data) {
+            if (askerView.classList.contains('hidden')) return; // Only update if visible
+            
+            if (data.status === 'waiting_for_answer') {
+                questionForm.classList.add('hidden');
+                askerWaitingView.classList.remove('hidden');
+            } else if (data.status === 'answered') {
+                const isCorrect = data.selectedAnswer === data.correctAnswer;
+                answerFeedback.innerHTML = `They answered: <strong class="font-bold">${data.selectedAnswer}</strong>. ${isCorrect ? '<span class="text-green-600">Correct!</span>' : '<span class="text-red-600">Incorrect.</span>'}`;
+                nextQuestionBtn.classList.remove('hidden');
+            }
+        }
+
+        function updateAnswererView(data) {
+            if (answererView.classList.contains('hidden')) return; // Only update if visible
+
+            if(data.status === 'waiting_for_question') {
+                questionDisplayView.classList.add('hidden');
+                answererWaitingView.classList.remove('hidden');
+            } else if (data.status === 'waiting_for_answer') {
+                 answererWaitingView.classList.add('hidden');
+                 questionDisplayView.classList.remove('hidden');
+                 questionText.textContent = data.question;
+                 renderChoicesForAnswerer(data.choices, null, null);
+                 recognitionStatus.textContent = 'Tap the button to start.';
+                 startRecognitionBtn.disabled = false;
+            } else if (data.status === 'answered') {
+                 renderChoicesForAnswerer(data.choices, data.selectedAnswer, data.correctAnswer);
+                 recognitionStatus.textContent = `You answered: ${data.selectedAnswer}`;
+                 startRecognitionBtn.disabled = true;
+            }
+        }
+
+        function renderChoicesForAnswerer(choices, selected, correct) {
+            choicesContainer.innerHTML = '';
+            choices.forEach(choiceText => {
+                const choiceEl = document.createElement('div');
+                choiceEl.className = 'choice-item border-2 border-slate-200 p-4 rounded-lg flex items-center justify-between transition-colors duration-300';
+                choiceEl.dataset.choice = choiceText.toLowerCase();
+                
+                choiceEl.innerHTML = `
+                    <span class="text-lg font-medium">${choiceText}</span>
+                    <span class="tick text-3xl text-green-500 font-bold">✓</span>
+                `;
+
+                if (selected) { // If an answer has been selected
+                    const isSelectedAnswer = choiceText.toLowerCase() === selected.toLowerCase();
+                    const isCorrectAnswer = choiceText.toLowerCase() === correct.toLowerCase();
+
+                    if(isSelectedAnswer) {
+                        choiceEl.classList.add('selected');
+                        choiceEl.classList.add(isCorrectAnswer ? 'correct' : 'incorrect');
+                    } else if (isCorrectAnswer) {
+                        // Optionally highlight the correct one if the wrong one was chosen
+                         choiceEl.classList.add('correct');
+                    }
+                }
+                choicesContainer.appendChild(choiceEl);
+            });
+        }
+        
+        // --- Answerer's Voice Recognition Logic ---
+        startRecognitionBtn.addEventListener('click', () => {
+            if (!recognition) return;
+            recognition.start();
+            recognitionStatus.textContent = 'Listening...';
+            startRecognitionBtn.disabled = true;
+        });
+
+        recognition.onresult = async (event) => {
+            const spokenAnswer = event.results[0][0].transcript.trim().toLowerCase();
+            const sessionRef = getSessionDocRef(currentSessionId);
+            const docSnap = await getDoc(sessionRef);
+            const choices = docSnap.data().choices.map(c => c.toLowerCase());
+            
+            // Check if spoken answer is one of the choices
+            if (choices.includes(spokenAnswer)) {
+                try {
+                     await updateDoc(sessionRef, {
+                        selectedAnswer: event.results[0][0].transcript.trim(), // Use original casing
+                        status: 'answered'
+                    });
+                } catch(error) {
+                    console.error("Error updating answer:", error);
+                    recognitionStatus.textContent = 'Could not save answer. Try again.';
+                }
+            } else {
+                 recognitionStatus.textContent = `I heard "${spokenAnswer}", which is not an option. Try again.`;
+            }
+        };
+
+        recognition.onend = () => {
+            // Re-enable button only if we're still waiting for an answer
+            if (questionDisplayView.classList.contains('hidden') === false && startRecognitionBtn.disabled === true) {
+                 const docRef = getSessionDocRef(currentSessionId);
+                 getDoc(docRef).then(docSnap => {
+                     if (docSnap.data().status === 'waiting_for_answer') {
+                         startRecognitionBtn.disabled = false;
+                     }
+                 });
+            }
+        };
+
+        recognition.onerror = (event) => {
+             recognitionStatus.textContent = `Error: ${event.error}. Please check mic permissions.`;
+             startRecognitionBtn.disabled = false;
+        };
+
+        // Click to copy session ID
+        sessionIdDisplay.addEventListener('click', () => {
+            navigator.clipboard.writeText(sessionIdDisplay.textContent)
+                .then(() => {
+                    const originalText = sessionIdDisplay.textContent;
+                    sessionIdDisplay.textContent = 'Copied!';
+                    setTimeout(() => sessionIdDisplay.textContent = originalText, 1500);
+                });
+        });
+
+        // --- Initialize App ---
+        initializeAndAuth();
+
+    </script>
+</body>
+</html>
